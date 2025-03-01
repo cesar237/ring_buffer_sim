@@ -34,6 +34,7 @@ typedef struct {
     int total_produced;
     uint64_t total_spin_time;
     int items_per_producer;
+    int num_producers;
 } producer_args_t;
 
 typedef struct {
@@ -45,6 +46,7 @@ typedef struct {
     uint64_t total_latency;
     int service_time;
     int total_items;
+    int num_consumers;
 } consumer_args_t;
 
 ring_buffer_t buffer;
@@ -118,7 +120,7 @@ void* consumer_thread(void* arg) {
     //     return NULL;
     // }
 
-    while (iterations < consumer_arg->total_items * 2 / consumer_arg->total_items) {
+    while (iterations < consumer_arg->total_items * 2 / consumer_arg->num_consumers) {
         test_item_t item;
         bool not_empty = true;
 
@@ -255,6 +257,7 @@ int main(int argc, char* argv[]) {
         producer_args[i].core = i % sysconf(_SC_NPROCESSORS_ONLN); // Distribute across available cores
         producer_args[i].total_produced = 0;
         producer_args[i].total_spin_time = 0;
+        producer_args[i].num_producers = num_producers;
         producer_args[i].items_per_producer = items_per_producer;
         
         if (pthread_create(&producers[i], NULL, producer_thread, &producer_args[i]) != 0) {
@@ -276,6 +279,7 @@ int main(int argc, char* argv[]) {
         consumer_args[i].total_spin_time = 0;
         consumer_args[i].total_latency = 0;
         consumer_args[i].total_service_time = 0;
+        consumer_args[i].num_consumers = num_consumers;
         consumer_args[i].service_time = service_time;
         consumer_args[i].total_items = total_items;
         
