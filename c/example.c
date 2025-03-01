@@ -118,7 +118,7 @@ void* consumer_thread(void* arg) {
     //     return NULL;
     // }
 
-    while (iterations < consumer_arg->total_items) {
+    while (iterations < consumer_arg->total_items * 2 / consumer_arg->total_items) {
         test_item_t item;
         bool not_empty = true;
 
