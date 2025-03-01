@@ -84,10 +84,10 @@ void* producer_thread(void* arg) {
     producer_args_t* producer_arg = (producer_args_t*)arg;
 
     // Pin the thread to a specific core
-    if (pin_thread_to_core(producer_arg->core) != 0) {
-        printf("Failed to pin producer thread %d to core %d\n", producer_arg->id, producer_arg->core);
-        return NULL;
-    }
+    // if (pin_thread_to_core(producer_arg->core) != 0) {
+    //     printf("Failed to pin producer thread %d to core %d\n", producer_arg->id, producer_arg->core);
+    //     return NULL;
+    // }
     
     for (int i = 0; i < producer_arg->items_per_producer; i++) {
         test_item_t item;
