@@ -90,7 +90,6 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
     rb->head = 0;
     rb->tail = 0;
     rb->batch_size = batch_size;
-    rb->batched = false;
     rb->access_time = 0;
     
     spinlock_init(&rb->produce_lock);
@@ -208,19 +207,65 @@ bool ring_buffer_produce(ring_buffer_t *rb, const void *item) {
 }
 
 /**
- * Dequeue an item from the ring buffer
+ * Dequeue multiple items from the ring buffer in a batch into an array of items
+ * 
+ * @param rb Pointer to the ring buffer structure
+ * @param items_array Array of pointers to store the dequeued items
+ * @param max_items Maximum number of items to dequeue
+ * @return Number of items successfully dequeued
+ */
+int ring_buffer_consume_batch(ring_buffer_t *rb, void **items_array, int max_items) {
+    int items_consumed = 0;
+    
+    spinlock_lock(&rb->consume_lock);
+    
+    // Process up to max_items or until the buffer is empty
+    while (items_consumed < max_items && !ring_buffer_is_empty(rb)) {
+        // Get the item from the current tail position
+        size_t index = rb->tail & rb->mask;
+        
+        if (rb->buffer[index]) {
+            // Copy the item to the destination array at the current position
+            void *dest = items_array[items_consumed];
+            memcpy(dest, rb->buffer[index], rb->element_size);
+            
+            // Free the memory allocated for this item
+            free(rb->buffer[index]);
+            rb->buffer[index] = NULL;
+            
+            // Update tail position
+            rb->tail = (rb->tail + 1) & rb->mask;
+            items_consumed++;
+        } else {
+            // This shouldn't happen in theory, but break if we find a NULL slot
+            break;
+        }
+    }
+    
+    // Memory barrier to ensure all reads complete before unlocking
+    if (items_consumed > 0) {
+        __sync_synchronize();
+    }
+    
+    spinlock_unlock(&rb->consume_lock);
+    
+    return items_consumed;
+}
+
+/**
+ * Dequeue a single item from the ring buffer
  * 
  * @param rb Pointer to the ring buffer structure
  * @param item Pointer to store the dequeued item
- * @param batch_size Number of elements to process in a batch
- * @return number of items dequeued
+ * @return true if successful, false otherwise
  */
-int ring_buffer_consume_batch(ring_buffer_t *rb, void *item, int batch_size) {
-    int total_consumed = 0;
+bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
+    // For a single item, we can just call the original implementation directly
+    bool result = false;
     
     spinlock_lock(&rb->consume_lock);
-    // uint64_t start = get_time_ns();
-    while (!ring_buffer_is_empty(rb)) {
+
+    if (!ring_buffer_is_empty(rb)) {
         // Get the item
         size_t index = rb->tail & rb->mask;
         if (rb->buffer[index]) {
@@ -233,32 +278,13 @@ int ring_buffer_consume_batch(ring_buffer_t *rb, void *item, int batch_size) {
             
             // Update tail
             rb->tail = (rb->tail + 1) & rb->mask;
-            
-            total_consumed++;
-            if (total_consumed >= batch_size) {
-                break;
-            }
+            result = true;
         }
     }
     
     spinlock_unlock(&rb->consume_lock);
-    // uint64_t end = get_time_ns();
-    // spinlock_unlock(&rb->produce_lock);
-    // printf("Access time: %lu\n", end - start);
-    // rb->access_time += end - start; 
     
-    return total_consumed;
-}
-
-/**
- * Dequeue an item from the ring buffer
- * 
- * @param rb Pointer to the ring buffer structure
- * @param item Pointer to store the dequeued item
- * @return true if successful, false otherwise
- */
-bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
-    return ring_buffer_consume_batch(rb, item, 1) == 1;
+    return result;
 }
 
 #endif /* RING_BUFFER_H */

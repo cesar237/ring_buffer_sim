@@ -4,23 +4,26 @@ LDFLAGS = -lrt -pthread
 
 # Define object files
 OBJS = simulation.o example.o
-
-# Define the executable
-TARGET = simulation_example
+OBJS_BATCH = simulation.o example_batch.o
 
 # Default target
-all: $(TARGET)
+all: simulation simulation_batch
 
 # Linking the executable
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+simulation: $(OBJS)
+	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
+simulation_batch: $(OBJS_BATCH)
+	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Compiling source files
 simulation.o: simulation.c simulation.h
-	$(CC) $(CFLAGS) -c $<
+	$(CC) -g $(CFLAGS) -c $<
 
 example.o: example.c simulation.h
-	$(CC) $(CFLAGS) -c $<
+	$(CC) -g $(CFLAGS) -c $<
+
+example_batch.o: example_batch.c simulation.h
+	$(CC) -g $(CFLAGS) -c $<
 
 # Clean target
 clean:
