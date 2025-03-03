@@ -52,6 +52,7 @@ typedef struct {
     int service_time;
     int total_items;
     int num_consumers;
+    int num_waiters;
 } consumer_args_t;
 
 ring_buffer_t buffer;
@@ -133,14 +134,16 @@ void* consumer_thread(void* arg) {
     //     return NULL;
     // }
 
+    int nr_sampling = 0;
+
     uint64_t start = get_time_ns();
     while (iterations < items_to_process) {
         // Create items array for batch processing
         test_item_t item;
 
+        nr_sampling++;
         if (iterations % (SAMPLING_SIZE) == 0) {
-            int num_waiters = ring_buffer_consumers_waiting(&buffer);
-            printf("Consumer %d: %d waiters\n", consumer_arg->id, num_waiters);
+            consumer_arg->num_waiters = ring_buffer_consumers_waiting(&buffer);
         }
 
         // Try to consume a batch of items
@@ -171,7 +174,8 @@ void* consumer_thread(void* arg) {
     uint64_t end = get_time_ns();
 
     consumer_arg->total_running_time = end - start;
-    
+    consumer_arg->num_waiters /= nr_sampling;
+
     // printf("Consumer %d: Finished after processing %d items\n", 
     //        consumer_arg->id, consumer_arg->total_consumed);
     return NULL;
@@ -195,6 +199,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     double total_latency = 0.0;
     double total_service_time = 0.0;
     double total_running_time = 0.0;
+    double average_nr_waiters = 0.0;
     // int num_valid_latency = 0;
     uint64_t total_items = num_producers * items_per_producer;
     
@@ -214,8 +219,10 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
             total_service_time += service_time_us;
         }
         total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
+        average_nr_waiters += consumer_args[i].num_waiters;
     }
 
+    average_nr_waiters /= num_consumers;
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
     double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
     total_throughput = (double)total_packet_consumed / (double)total_running_time * 1000000.0;
@@ -237,6 +244,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("Average_latency %.2f us\n", total_latency/total_items);
     printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
     printf("Service_time_overhead %.2f%%\n", service_time_overhead);
+    printf("Average_nr_waiters %.2f\n", average_nr_waiters);
 }
 
 int main(int argc, char* argv[]) {
@@ -365,6 +373,7 @@ int main(int argc, char* argv[]) {
         consumer_args[i].service_time = service_time;
         consumer_args[i].total_items = total_items;
         consumer_args[i].total_running_time = 0;
+        consumer_args[i].num_waiters = 0;
         
         if (pthread_create(&consumers[i], NULL, consumer_thread, &consumer_args[i]) != 0) {
             fprintf(stderr, "Failed to create consumer thread %d\n", i + 1);
