@@ -72,7 +72,8 @@ typedef struct {
     enhanced_spinlock_t consume_lock;  // Lock for consumers
 
     // Stats
-    uint64_t access_time;      // Time spent accessing the buffer
+    atomic_int access_time;    // Time spent accessing the buffer in consume
+    atomic_int nr_access_time; // Number of accesses in consume
     uint64_t producer_waits;   // Total number of producer waits
     uint64_t consumer_waits;   // Total number of consumer waits
 } ring_buffer_t;
@@ -116,7 +117,7 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
     
     spinlock_init(&rb->produce_lock);
     spinlock_init(&rb->consume_lock);
-    
+
     return true;
 }
 

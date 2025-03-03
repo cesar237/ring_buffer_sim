@@ -146,15 +146,16 @@ void* consumer_thread(void* arg) {
         item.waiters = 0;
 
         // consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
+        // printf("Item id %d: %d -> item.waiters=%d\n", item.id, nr_waiters, item.waiters);
+        uint64_t start = get_time_ns();
+        bool got = ring_buffer_consume(&buffer, &item);
+        uint64_t end = get_time_ns();
+
         // Try to consume a batch of items
         if (iterations % SAMPLING_SIZE == 0) {
             nr_waiters = ring_buffer_consumers_waiting(&buffer);
         }
         item.waiters = nr_waiters;
-        printf("Consumer %02d: %d -> item.waiters=%d\n", consumer_arg->id, nr_waiters, item.waiters);
-        uint64_t start = get_time_ns();
-        bool got = ring_buffer_consume(&buffer, &item);
-        uint64_t end = get_time_ns();
 
         item.produce_time = start;
         item.spin_time = end - start;
@@ -239,8 +240,6 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
         }
     }
 
-    printf("Total_waiters %d\n", total_waiters);
-
     average_nr_waiters /= num_consumers;
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
     double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
@@ -263,6 +262,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("Average_latency %.2f us\n", total_latency/total_items);
     printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
     printf("Service_time_overhead %.2f%%\n", service_time_overhead);
+    printf("Total_waiters %d\n", total_waiters);
     // printf("Average_nr_waiters %.2f\n", average_nr_waiters);
 }
 
