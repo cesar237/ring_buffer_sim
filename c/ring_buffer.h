@@ -54,6 +54,9 @@ typedef struct {
     spinlock_t produce_lock; // Lock for producers
     spinlock_t consume_lock; // Lock for consumers
 
+    int produce_contention;
+    int consume_contention;
+
     // Add spinlocks stats 
     uint64_t access_time;
 } ring_buffer_t;
