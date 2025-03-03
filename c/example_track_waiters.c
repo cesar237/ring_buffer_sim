@@ -257,6 +257,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("--------------------------------\n");
 
     printf("Total_throughput %.2f items/s\n", total_throughput);
+    printf("Total_consumed %d items\n", (int)total_packet_consumed);
     printf("Total_running_time %.2f us\n", total_running_time);
     printf("Total_spin_time %.2f us\n", total_spin_time);
     printf("Total_service_time %.2f us\n", total_service_time);

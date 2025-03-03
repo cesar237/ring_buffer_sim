@@ -85,3 +85,5 @@ dkms.conf
 /c/simulation_track_waiters
 c/simulation_batch_track_waiters
 c/simulation_multi_rb_track_waiters
+
+/c/logdir

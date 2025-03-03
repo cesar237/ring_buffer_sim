@@ -247,6 +247,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int ite
     printf("--------------------------------\n");
 
     printf("Total_throughput %.2f items/s\n", total_throughput);
+    printf("Total_consumed %d items\n", (int)total_packet_consumed);
     printf("Total_running_time %.2f us\n", total_running_time);
     printf("Total_spin_time %.2f us\n", total_spin_time);
     printf("Total_service_time %.2f us\n", total_service_time);
@@ -306,6 +307,7 @@ int main(int argc, char* argv[]) {
     
     // Initialize random seed
     srand(time(NULL));
+    items_per_producer = items_per_producer / num_pairs;
     
     // Create array of ring buffers - one for each producer-consumer pair
     ring_buffer_t* buffers = (ring_buffer_t*)malloc(num_pairs * sizeof(ring_buffer_t));
