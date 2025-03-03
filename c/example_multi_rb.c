@@ -143,6 +143,7 @@ void* consumer_thread(void* arg) {
             consumer_arg->total_service_time += stats.actual_us;
 
             // Update item's consume time and statistics
+            item.produce_time = consume_start;
             item.consume_time = get_time_ns();
             consumer_arg->total_latency += item.consume_time - item.produce_time;
             consumer_arg->total_consumed++;
