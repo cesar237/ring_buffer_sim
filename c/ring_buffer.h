@@ -107,7 +107,7 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
  * @return true if initialization succeeded, false otherwise
  */
 bool ring_buffer_init(ring_buffer_t *rb, size_t capacity, size_t element_size) {
-    printf("Init ring buffer\n");
+    // printf("Init ring buffer\n");
     return ring_buffer_init_batch(rb, capacity, element_size, 1);
 }
 
