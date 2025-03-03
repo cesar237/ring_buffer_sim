@@ -140,9 +140,9 @@ void* consumer_thread(void* arg) {
     while (iterations < items_to_process) {
         // Create items array for batch processing
         test_item_t item;
-
-        nr_sampling++;
+  
         if (iterations % (SAMPLING_SIZE) == 0) {
+            nr_sampling++;
             consumer_arg->num_waiters = ring_buffer_consumers_waiting(&buffer);
         }
 
