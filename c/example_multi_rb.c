@@ -173,6 +173,7 @@ void print_usage(const char* program_name) {
 }
 
 void print_statistics(consumer_args_t* consumer_args, int num_consumers, int items_per_producer, int service_time) {
+    double total_packet_consumed = 0;
     double total_throughput = 0.0;
     double total_spin_time = 0.0;
     double total_latency = 0.0;
@@ -185,15 +186,9 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int ite
     for (int i = 0; i < num_consumers; i++) {
         double spin_time_us = (double)consumer_args[i].total_spin_time / 1000.0;
         double service_time_us = (double)consumer_args[i].total_service_time / 1.0;
-
-        // Prevent division by zero when calculating throughput
-        double throughput = (consumer_args[i].total_service_time > 0) ? 
-            (double)consumer_args[i].total_consumed / (double)consumer_args[i].total_service_time * 1000000.0 : 0.0;
         
         // Only add valid values to totals
-        if (isfinite(throughput)) {
-            total_throughput += throughput;
-        }
+        total_packet_consumed += consumer_args[i].total_consumed;
         if (isfinite(spin_time_us)) {
             total_spin_time += spin_time_us;
         }
@@ -207,6 +202,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int ite
 
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
     double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
+    total_throughput = (double)total_packet_consumed / (double)total_running_time * 1000000.0;
 
     // Print total throughput total spin time and total service time
     printf("\n");
