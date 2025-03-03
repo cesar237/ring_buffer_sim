@@ -190,7 +190,7 @@ void print_usage(const char* program_name) {
     printf("Usage: %s [options]\n", program_name);
     printf("Options:\n");
     printf("  -b BUFFER_SIZE     Size of each ring buffer (default: %d)\n", DEFAULT_BUFFER_SIZE);
-    printf("  -p NUM_PAIRS       Number of producer-consumer pairs (default: %d)\n", DEFAULT_NUM_PAIRS);
+    printf("  -c NUM_PAIRS       Number of producer-consumer pairs (default: %d)\n", DEFAULT_NUM_PAIRS);
     printf("  -i ITEMS           Items per producer (default: %d)\n", DEFAULT_ITEMS_PER_PRODUCER);
     printf("  -s SERVICE_TIME    Service time in microseconds (default: %d)\n", DEFAULT_SERVICE_TIME);
     printf("  -h                 Display this help message\n");
@@ -264,7 +264,7 @@ int main(int argc, char* argv[]) {
     
     // Parse command-line arguments
     int opt;
-    while ((opt = getopt(argc, argv, "b:p:i:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "b:c:i:s:h")) != -1) {
         switch (opt) {
             case 'b':
                 buffer_size = atoi(optarg);
@@ -273,7 +273,7 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
                 break;
-            case 'p':
+            case 'c':
                 num_pairs = atoi(optarg);
                 if (num_pairs <= 0) {
                     fprintf(stderr, "Number of pairs must be positive\n");

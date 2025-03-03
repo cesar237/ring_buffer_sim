@@ -137,7 +137,7 @@ void* consumer_thread(void* arg) {
         
         consumer_arg->total_spin_time += consume_end - consume_start;
 
-        if (got) {            
+        if (got) {
             // Simulate some work for each item
             simulation_stats_t stats = simulation_busy_wait_us(consumer_arg->service_time);
             consumer_arg->total_service_time += stats.actual_us;
@@ -166,7 +166,7 @@ void print_usage(const char* program_name) {
     printf("Usage: %s [options]\n", program_name);
     printf("Options:\n");
     printf("  -b BUFFER_SIZE     Size of each ring buffer (default: %d)\n", DEFAULT_BUFFER_SIZE);
-    printf("  -p NUM_PAIRS       Number of producer-consumer pairs (default: %d)\n", DEFAULT_NUM_PAIRS);
+    printf("  -c NUM_PAIRS       Number of producer-consumer pairs (default: %d)\n", DEFAULT_NUM_PAIRS);
     printf("  -i ITEMS           Items per producer (default: %d)\n", DEFAULT_ITEMS_PER_PRODUCER);
     printf("  -s SERVICE_TIME    Service time in microseconds (default: %d)\n", DEFAULT_SERVICE_TIME);
     printf("  -h                 Display this help message\n");
@@ -181,19 +181,19 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int ite
     double total_running_time = 0.0;
     // int num_valid_latency = 0;
     uint64_t total_items = num_consumers * items_per_producer;
-    
+
     // print statistics for each consumer
     for (int i = 0; i < num_consumers; i++) {
         double spin_time_us = (double)consumer_args[i].total_spin_time / 1000.0;
         double service_time_us = (double)consumer_args[i].total_service_time / 1.0;
-        
+
         // Only add valid values to totals
         total_packet_consumed += consumer_args[i].total_consumed;
         if (isfinite(spin_time_us)) {
             total_spin_time += spin_time_us;
         }
         total_latency += (double)consumer_args[i].total_latency / 1000.0;
-        
+
         if (isfinite(service_time_us)) {
             total_service_time += service_time_us;
         }
@@ -227,10 +227,10 @@ int main(int argc, char* argv[]) {
     int num_pairs = DEFAULT_NUM_PAIRS;
     int items_per_producer = DEFAULT_ITEMS_PER_PRODUCER;
     int service_time = DEFAULT_SERVICE_TIME;
-    
+
     // Parse command-line arguments
     int opt;
-    while ((opt = getopt(argc, argv, "b:p:i:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "b:c:i:s:h")) != -1) {
         switch (opt) {
             case 'b':
                 buffer_size = atoi(optarg);
@@ -239,7 +239,7 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
                 break;
-            case 'p':
+            case 'c':
                 num_pairs = atoi(optarg);
                 if (num_pairs <= 0) {
                     fprintf(stderr, "Number of pairs must be positive\n");
