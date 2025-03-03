@@ -83,3 +83,5 @@ dkms.conf
 # End of https://www.toptal.com/developers/gitignore/api/c,c++
 
 /c/simulation_track_waiters
+c/simulation_batch_track_waiters
+c/simulation_multi_rb_track_waiters

@@ -21,7 +21,7 @@
 #define DEFAULT_NUM_CONSUMERS 16
 #define DEFAULT_ITEMS_PER_PRODUCER 10000
 #define DEFAULT_SERVICE_TIME 10
-#define DEFAULT_ARRIVAL_RATE 100000
+#define DEFAULT_BATCH_SIZE 4
 #define SAMPLING_SIZE 100
 
 typedef struct {
@@ -42,7 +42,6 @@ typedef struct {
     uint64_t total_spin_time;
     int items_per_producer;
     int num_producers;
-    double arrival_rate;
 } producer_args_t;
 
 typedef struct {
@@ -53,6 +52,7 @@ typedef struct {
     uint64_t total_service_time;
     uint64_t total_latency;
     uint64_t total_running_time;
+    int batch_size;
     int service_time;
     int total_items;
     int num_consumers;
@@ -121,7 +121,6 @@ void* producer_thread(void* arg) {
     return NULL;
 }
 
-
 /**
  * Consumer thread function that processes items in batches
  */
@@ -133,7 +132,7 @@ void* consumer_thread(void* arg) {
     int access_time = 0;
     
     // Define batch size - can be adjusted based on performance testing
-    // const int BATCH_SIZE = 16;
+    const int BATCH_SIZE = consumer_arg->batch_size;
     
     // Pin the thread to a specific core
     // if (pin_thread_to_core(consumer_arg->core) != 0) {
@@ -144,51 +143,64 @@ void* consumer_thread(void* arg) {
     uint64_t start = get_time_ns();
     while (iterations < items_to_process) {
         // Create items array for batch processing
-        item_t item;
-        item.waiters = 0;
-
-        // consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
-        // printf("Item id %d: %d -> item.waiters=%d\n", item.id, nr_waiters, item.waiters);
+        item_t items[BATCH_SIZE];
+        void* item_ptrs[BATCH_SIZE];
+        
+        // Initialize pointers to items
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            item_ptrs[i] = &items[i];
+        }
+        
+        // Try to consume a batch of items
         uint64_t start = get_time_ns();
-        bool got = ring_buffer_consume(&buffer, &item);
+        size_t consumed = ring_buffer_consume_batch(&buffer, item_ptrs, BATCH_SIZE);
         uint64_t end = get_time_ns();
-
-        // Update item's consume time and statistics
+        
+        // Try to consume a batch of items
         if (iterations % SAMPLING_SIZE == 0) {
             nr_waiters = ring_buffer_consumers_waiting(&buffer);
             access_time = ring_buffer_access_time(&buffer);
         }
+
+        consumer_arg->total_spin_time += end - start;
         
-        item.access_time = (uint64_t)access_time;
-        item.waiters = nr_waiters;
-        item.produce_time = start;
-        item.spin_time = end - start;
-        consumer_arg->total_spin_time += item.spin_time;
+        if (consumed > 0) {
+            // Process each consumed item
+            for (size_t i = 0; i < consumed; i++) {                
+                // Simulate some work for each item
+                simulation_stats_t stats = simulation_busy_wait_us(consumer_arg->service_time);
+                consumer_arg->total_service_time += stats.actual_us;
 
-        // printf("Item id %d: %d -> item.waiters=%d, %ld\n", item.id, nr_waiters, item.waiters, item.access_time);
+                // Update item's consume time and statistics
+                item_t* item = (item_t*)item_ptrs[i];
+                item->produce_time = start;
+                item->access_time = (uint64_t)access_time;
+                item->waiters = nr_waiters;
+                item->spin_time = end - start;
+                item->consume_time = get_time_ns();
+                item->latency = item->consume_time - item->produce_time;
+                consumer_arg->total_latency += item->consume_time - item->produce_time;
+                consumer_arg->total_consumed++;
 
-        if (got) {            
-            // Simulate some work for each item
-            simulation_stats_t stats = simulation_busy_wait_us(consumer_arg->service_time);
-            consumer_arg->total_service_time += stats.actual_us;
-
-            // Update item's consume time and statistics
-            item.consume_time = get_time_ns();
-            item.latency = item.consume_time - item.produce_time;
-            consumer_arg->total_latency += item.latency;
-            consumer_arg->total_consumed++;
+                // Add item to processed items array
+                consumer_arg->processed_items[iterations] = *item;
+                iterations++;
+            }
             
-            // Add item to processed items array
-            consumer_arg->processed_items[iterations] = item;
-            iterations++;
+            // Increment iterations by number of items consumed
+            // iterations += consumed;
         } else {
-            // No items consumed, queue is empty so exit.
             break;
+            // No items were consumed, sleep for a bit
+            // usleep(1000);
+            // iterations++;  // Increment to prevent infinite loop
         }
     }
     uint64_t end = get_time_ns();
 
     consumer_arg->total_running_time = end - start;
+    // printf("Consumer %d: Finished after processing %d items\n", 
+    //        consumer_arg->id, consumer_arg->total_consumed);
     return NULL;
 }
 
@@ -200,16 +212,18 @@ void print_usage(const char* program_name) {
     printf("  -c NUM_CONSUMERS   Number of consumer threads (default: %d)\n", DEFAULT_NUM_CONSUMERS);
     printf("  -i ITEMS           Items per producer (default: %d)\n", DEFAULT_ITEMS_PER_PRODUCER);
     printf("  -s SERVICE_TIME    Service time in microseconds (default: %d)\n", DEFAULT_SERVICE_TIME);
+    printf("  -a BATCH_SIZE      Number of items to process in a batch (default: %d)\n", DEFAULT_BATCH_SIZE);
     printf("  -h                 Display this help message\n");
 }
 
 void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num_producers, int items_per_producer, int service_time) {
     double total_throughput = 0.0;
-    double total_packet_consumed = 0;
+    int total_packet_consumed = 0;
     double total_spin_time = 0.0;
     double total_latency = 0.0;
     double total_service_time = 0.0;
     double total_running_time = 0.0;
+    // int num_valid_latency = 0;
     uint64_t total_items = num_producers * items_per_producer;
     
     // print statistics for each consumer
@@ -228,10 +242,8 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
             total_service_time += service_time_us;
         }
         total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
-        // average_nr_waiters += consumer_args[i].num_waiters;
     }
 
-    // Print statistics for each consumed item
     printf("\n");
     printf("Consumed items statistics:\n"); 
     printf("ID,Latency,Waiters\n");
@@ -243,7 +255,8 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     }
 
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
-    double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
+    double service_time_overhead = 100.0 * total_service_time / 
+    (total_spin_time + total_service_time);
     total_throughput = (double)total_packet_consumed / (double)total_running_time * 1000000.0;
 
     // Print total throughput total spin time and total service time
@@ -254,6 +267,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("NUM_CONSUMERS=%d\n", num_consumers);
     printf("ITEMS_PER_PRODUCER=%d\n", items_per_producer);
     printf("SERVICE_TIME=%d\n", service_time);
+    printf("BATCH_SIZE=%d\n", consumer_args->batch_size);
     printf("--------------------------------\n");
 
     printf("Total_throughput %.2f items/s\n", total_throughput);
@@ -272,15 +286,23 @@ int main(int argc, char* argv[]) {
     int num_consumers = DEFAULT_NUM_CONSUMERS;
     int items_per_producer = DEFAULT_ITEMS_PER_PRODUCER;
     int service_time = DEFAULT_SERVICE_TIME;
+    int batch_size = DEFAULT_BATCH_SIZE;
     
     // Parse command-line arguments
     int opt;
-    while ((opt = getopt(argc, argv, "b:p:c:i:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "b:a:p:c:i:s:h")) != -1) {
         switch (opt) {
             case 'b':
                 buffer_size = atoi(optarg);
                 if (buffer_size <= 0) {
                     fprintf(stderr, "Buffer size must be positive\n");
+                    return 1;
+                }
+                break;
+            case 'a':
+                batch_size = atoi(optarg);
+                if (batch_size <= 0) {
+                    fprintf(stderr, "Batch size must be positive\n");
                     return 1;
                 }
                 break;
@@ -325,9 +347,8 @@ int main(int argc, char* argv[]) {
     // Initialize random seed
     srand(time(NULL));
     
-    
     // Initialize the ring buffer
-    if (!ring_buffer_init(&buffer, buffer_size, sizeof(item_t))) {
+    if (!ring_buffer_init_batch(&buffer, buffer_size, sizeof(item_t), batch_size)) {
         fprintf(stderr, "Failed to initialize ring buffer\n");
         return 1;
     }
@@ -405,8 +426,8 @@ int main(int argc, char* argv[]) {
         consumer_args[i].num_consumers = num_consumers;
         consumer_args[i].service_time = service_time;
         consumer_args[i].total_items = total_items;
+        consumer_args[i].batch_size = batch_size;
         consumer_args[i].total_running_time = 0;
-        consumer_args[i].num_waiters = 0;
         
         if (pthread_create(&consumers[i], NULL, consumer_thread, &consumer_args[i]) != 0) {
             fprintf(stderr, "Failed to create consumer thread %d\n", i + 1);
@@ -433,6 +454,7 @@ int main(int argc, char* argv[]) {
         pthread_join(consumers[i], NULL);
     }
 
+    //print statistics
     print_statistics(consumer_args, num_consumers, num_producers, items_per_producer, service_time);
 
     // Clean up
