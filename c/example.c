@@ -16,7 +16,7 @@
 #include <math.h>
 
 // Default values
-#define DEFAULT_BUFFER_SIZE 4096
+#define DEFAULT_BUFFER_SIZE 100000
 #define DEFAULT_NUM_PRODUCERS 1
 #define DEFAULT_NUM_CONSUMERS 16
 #define DEFAULT_ITEMS_PER_PRODUCER 10000
@@ -183,6 +183,61 @@ void print_usage(const char* program_name) {
     printf("  -h                 Display this help message\n");
 }
 
+void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num_producers, int items_per_producer, int service_time) {
+    double total_throughput = 0.0;
+    double total_spin_time = 0.0;
+    double total_latency = 0.0;
+    double total_service_time = 0.0;
+    double total_running_time = 0.0;
+    // int num_valid_latency = 0;
+    uint64_t total_items = num_producers * items_per_producer;
+    
+    // print statistics for each consumer
+    for (int i = 0; i < num_consumers; i++) {
+        double spin_time_us = (double)consumer_args[i].total_spin_time / 1000.0;
+        double service_time_us = (double)consumer_args[i].total_service_time / 1.0;
+
+        // Prevent division by zero when calculating throughput
+        double throughput = (consumer_args[i].total_service_time > 0) ? 
+            (double)consumer_args[i].total_consumed / (double)consumer_args[i].total_service_time * 1000000.0 : 0.0;
+        
+        // Only add valid values to totals
+        if (isfinite(throughput)) {
+            total_throughput += throughput;
+        }
+        if (isfinite(spin_time_us)) {
+            total_spin_time += spin_time_us;
+        }
+        total_latency += (double)consumer_args[i].total_latency / 1000.0;
+        
+        if (isfinite(service_time_us)) {
+            total_service_time += service_time_us;
+        }
+        total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
+    }
+
+    double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
+    double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
+
+    // Print total throughput total spin time and total service time
+    printf("\n");
+    printf("--------------------------------\n");
+    printf("End of simulation:\n");
+    printf("NUM_PRODUCERS=%d\n", num_producers);
+    printf("NUM_CONSUMERS=%d\n", num_consumers);
+    printf("ITEMS_PER_PRODUCER=%d\n", items_per_producer);
+    printf("SERVICE_TIME=%d\n", service_time);
+    printf("--------------------------------\n");
+
+    printf("Total_throughput %.2f items/s\n", total_throughput);
+    printf("Total_running_time %.2f us\n", total_running_time);
+    printf("Total_spin_time %.2f us\n", total_spin_time);
+    printf("Total_service_time %.2f us\n", total_service_time);
+    printf("Average_latency %.2f us\n", total_latency/total_items);
+    printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
+    printf("Service_time_overhead %.2f%%\n", service_time_overhead);
+}
+
 int main(int argc, char* argv[]) {
     // Default parameters
     int buffer_size = DEFAULT_BUFFER_SIZE;
@@ -331,61 +386,7 @@ int main(int argc, char* argv[]) {
         pthread_join(consumers[i], NULL);
     }
 
-    // Print statistics
-    // print total consumed from producer statistics
-    // for (int i = 0; i < num_producers; i++) {
-    //     printf("Producer %d: Produced %d items\n", producer_args[i].id, producer_args[i].total_produced);
-    // }
-
-    double total_throughput = 0.0, total_spin_time = 0.0, total_service_time = 0.0, total_latency = 0.0, total_running_time = 0.0;
-
-    // print total consumed from consumer statistics
-    for (int i = 0; i < num_consumers; i++) {
-        // printf("\n");
-        double spin_time_us = (double)consumer_args[i].total_spin_time / 1000.0;
-        double service_time_us = (double)consumer_args[i].total_service_time / 1.0;
-        double total_time_us = service_time_us + spin_time_us;
-        double spin_time_overhead = 100.0 * spin_time_us / total_time_us;
-        double service_time_overhead = 100.0 * service_time_us / total_time_us;
-        double latency_us = (double)consumer_args[i].total_latency / consumer_args[i].total_consumed / 1000.0;
-        double throughput = (double)consumer_args[i].total_consumed / (double)consumer_args[i].total_service_time * 1000000.0;
-
-        // printf("Consumer %d: Consumed %d items\n", consumer_args[i].id, consumer_args[i].total_consumed);
-        // printf("Consumer %d: Total spin time %.2f us\n", consumer_args[i].id, spin_time_us);
-        // printf("Consumer %d: Total service time %.2f us\n", consumer_args[i].id, service_time_us);
-        // printf("Consumer %d: Total time %.2f us\n", consumer_args[i].id, total_time_us);
-        // printf("Consumer %d: Spin time overhead %.2f%%\n", consumer_args[i].id, spin_time_overhead);
-        // printf("Consumer %d: Service time overhead %.2f%%\n", consumer_args[i].id, service_time_overhead);
-        // printf("Consumer %d: Average latency %.2f us\n", consumer_args[i].id, latency_us);
-        // printf("Consumer %d: Throughput %.2f items/s\n", consumer_args[i].id, throughput);
-
-        total_throughput += throughput;
-        total_spin_time += spin_time_us;
-        total_latency += latency_us;
-        total_service_time += service_time_us;
-        total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
-    }
-
-    double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
-    double service_time_overhead = 100.0 * total_service_time / (total_spin_time + total_service_time);
-
-    // Print total throughput total spin time and total service time
-    printf("\n");
-    printf("--------------------------------\n");
-    printf("End of simulation:\n");
-    printf("NUM_PRODUCERS=%d\n", num_producers);
-    printf("NUM_CONSUMERS=%d\n", num_consumers);
-    printf("ITEMS_PER_PRODUCER=%d\n", items_per_producer);
-    printf("SERVICE_TIME=%d\n", service_time);
-    printf("--------------------------------\n");
-
-    printf("Total_throughput %.2f items/s\n", total_throughput);
-    printf("Total_running_time %.2f us\n", total_running_time);
-    printf("Total_spin_time %.2f us\n", total_spin_time);
-    printf("Total_service_time %.2f us\n", total_service_time);
-    printf("Average_latency %.2f us\n", total_latency/num_consumers);
-    printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
-    printf("Service_time_overhead %.2f%%\n", service_time_overhead);
+    print_statistics(consumer_args, num_consumers, num_producers, items_per_producer, service_time);
 
     // Clean up
     ring_buffer_destroy(&buffer);
