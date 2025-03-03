@@ -133,7 +133,6 @@ void* consumer_thread(void* arg) {
     // }
 
     uint64_t start = get_time_ns();
-
     while (iterations < items_to_process) {
         // Create items array for batch processing
         test_item_t item;

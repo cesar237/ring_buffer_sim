@@ -131,6 +131,7 @@ void* consumer_thread(void* arg) {
     //     return NULL;
     // }
 
+    uint64_t start = get_time_ns();
     while (iterations < items_to_process) {
         // Create items array for batch processing
         test_item_t items[BATCH_SIZE];
@@ -172,7 +173,9 @@ void* consumer_thread(void* arg) {
             // iterations++;  // Increment to prevent infinite loop
         }
     }
-    
+    uint64_t end = get_time_ns();
+
+    consumer_arg->total_running_time = end - start;
     // printf("Consumer %d: Finished after processing %d items\n", 
     //        consumer_arg->id, consumer_arg->total_consumed);
     return NULL;
@@ -192,6 +195,7 @@ void print_usage(const char* program_name) {
 
 void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num_producers, int items_per_producer, int service_time) {
     double total_throughput = 0.0;
+    int total_packet_consumed = 0;
     double total_spin_time = 0.0;
     double total_latency = 0.0;
     double total_service_time = 0.0;
@@ -234,6 +238,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("NUM_CONSUMERS=%d\n", num_consumers);
     printf("ITEMS_PER_PRODUCER=%d\n", items_per_producer);
     printf("SERVICE_TIME=%d\n", service_time);
+    printf("BATCH_SIZE=%d\n", consumer_args->batch_size);
     printf("--------------------------------\n");
 
     printf("Total_throughput %.2f items/s\n", total_throughput);
