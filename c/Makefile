@@ -1,18 +1,21 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c11 -O2
-LDFLAGS = -lrt -pthread
+LDFLAGS = -lrt -pthread -lm
 
 # Define object files
 OBJS = simulation.o example.o
 OBJS_BATCH = simulation.o example_batch.o
+OBJS_MULTI_RB = simulation.o example_multi_rb.o
 
 # Default target
-all: simulation simulation_batch
+all: simulation simulation_batch simulation_multi_rb
 
 # Linking the executable
 simulation: $(OBJS)
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 simulation_batch: $(OBJS_BATCH)
+	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
+simulation_multi_rb: $(OBJS_MULTI_RB)
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Compiling source files
@@ -25,9 +28,12 @@ example.o: example.c simulation.h
 example_batch.o: example_batch.c simulation.h
 	$(CC) -g $(CFLAGS) -c $<
 
+example_multi_rb.o: example_multi_rb.c simulation.h
+	$(CC) -g $(CFLAGS) -c $<
+
 # Clean target
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(TARGET)
 
 # Run the example program
 run: $(TARGET)
