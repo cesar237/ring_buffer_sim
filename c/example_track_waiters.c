@@ -29,7 +29,7 @@ typedef struct {
     double value;
     uint64_t produce_time;
     uint64_t consume_time;
-} test_item_t;
+} item_t;
 
 typedef struct {
     int id;
@@ -52,7 +52,8 @@ typedef struct {
     int service_time;
     int total_items;
     int num_consumers;
-    int num_waiters;
+    uint64_t num_waiters;
+    item_t *processed_items;
 } consumer_args_t;
 
 ring_buffer_t buffer;
@@ -98,7 +99,7 @@ void* producer_thread(void* arg) {
     // }
     
     for (int i = 0; i < producer_arg->items_per_producer; i++) {
-        test_item_t item;
+        item_t item;
         item.id = producer_arg->id * 1000 + i;
         item.produce_time = get_time_ns();
         item.value = (double)(producer_arg->id * 100) + (i * 0.5);
@@ -134,18 +135,12 @@ void* consumer_thread(void* arg) {
     //     return NULL;
     // }
 
-    int nr_sampling = 0;
-
     uint64_t start = get_time_ns();
     while (iterations < items_to_process) {
         // Create items array for batch processing
-        test_item_t item;
-  
-        if (iterations % (SAMPLING_SIZE) == 0) {
-            nr_sampling++;
-            consumer_arg->num_waiters = ring_buffer_consumers_waiting(&buffer);
-        }
+        item_t item;
 
+        consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
         // Try to consume a batch of items
         uint64_t start = get_time_ns();
         bool got = ring_buffer_consume(&buffer, &item);
@@ -174,7 +169,7 @@ void* consumer_thread(void* arg) {
     uint64_t end = get_time_ns();
 
     consumer_arg->total_running_time = end - start;
-    consumer_arg->num_waiters /= nr_sampling;
+    consumer_arg->num_waiters /= iterations;
 
     // printf("Consumer %d: Finished after processing %d items\n", 
     //        consumer_arg->id, consumer_arg->total_consumed);
@@ -309,7 +304,7 @@ int main(int argc, char* argv[]) {
     
     
     // Initialize the ring buffer
-    if (!ring_buffer_init(&buffer, buffer_size, sizeof(test_item_t))) {
+    if (!ring_buffer_init(&buffer, buffer_size, sizeof(item_t))) {
         fprintf(stderr, "Failed to initialize ring buffer\n");
         return 1;
     }
