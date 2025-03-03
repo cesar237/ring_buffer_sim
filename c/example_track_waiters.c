@@ -32,6 +32,7 @@ typedef struct {
     uint64_t latency;
     int waiters;
     uint64_t spin_time;
+    uint64_t access_time;
 } item_t;
 
 typedef struct {
@@ -129,6 +130,7 @@ void* consumer_thread(void* arg) {
     int iterations = 0;
     int items_to_process = consumer_arg->total_items * 2 / consumer_arg->num_consumers;
     int nr_waiters = 0;
+    int access_time = 0;
     
     // Define batch size - can be adjusted based on performance testing
     // const int BATCH_SIZE = 16;
@@ -154,12 +156,16 @@ void* consumer_thread(void* arg) {
         // Try to consume a batch of items
         if (iterations % SAMPLING_SIZE == 0) {
             nr_waiters = ring_buffer_consumers_waiting(&buffer);
+            access_time = ring_buffer_access_time(&buffer);
         }
+        
+        item.access_time = (uint64_t)access_time;
         item.waiters = nr_waiters;
-
         item.produce_time = start;
         item.spin_time = end - start;
         consumer_arg->total_spin_time += item.spin_time;
+
+        // printf("Item id %d: %d -> item.waiters=%d, %ld\n", item.id, nr_waiters, item.waiters, item.access_time);
 
         if (got) {            
             // Simulate some work for each item
@@ -236,7 +242,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
         for (int j = 0; j < consumer_args[i].total_consumed; j++) {
             item_t item = consumer_args[i].processed_items[j];
             total_waiters += item.waiters;
-            printf("%d,%.2f,%d,%.2f\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0);
+            printf("%d,%.2f,%d,%.2f,%ld\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0, item.access_time);
         }
     }
 

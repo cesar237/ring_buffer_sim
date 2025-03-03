@@ -117,6 +117,8 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
     
     spinlock_init(&rb->produce_lock);
     spinlock_init(&rb->consume_lock);
+    atomic_init(&rb->access_time, 0);
+    atomic_init(&rb->nr_access_time, 0);
 
     return true;
 }
@@ -285,6 +287,7 @@ int ring_buffer_consume_batch(ring_buffer_t *rb, void **items_array, int max_ite
     rb->consumer_waits += spinlock_get_waiting(&rb->consume_lock);
     spinlock_lock(&rb->consume_lock);
     
+    uint64_t start = get_time_ns();
     // Process up to max_items or until the buffer is empty
     while (items_consumed < max_items && !ring_buffer_is_empty(rb)) {
         // Get the item from the current tail position
@@ -313,8 +316,16 @@ int ring_buffer_consume_batch(ring_buffer_t *rb, void **items_array, int max_ite
         __sync_synchronize();
     }
     
+    uint64_t end = get_time_ns();
     spinlock_unlock(&rb->consume_lock);
     
+    int nr_access_time = atomic_load(&rb->nr_access_time);
+    int access_time = atomic_load(&rb->access_time);
+
+    access_time = (access_time * nr_access_time + end - start) / (nr_access_time + 1);
+    atomic_store(&rb->access_time, access_time);
+    atomic_fetch_add(&rb->nr_access_time, 1);
+
     return items_consumed;
 }
 
@@ -331,6 +342,7 @@ bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
     // Update consumer waits before acquiring the lock
     rb->consumer_waits += spinlock_get_waiting(&rb->consume_lock);
     spinlock_lock(&rb->consume_lock);
+    uint64_t start = get_time_ns();
 
     if (!ring_buffer_is_empty(rb)) {
         // Get the item
@@ -348,10 +360,28 @@ bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
             result = true;
         }
     }
-    
+
+    uint64_t end = get_time_ns();
     spinlock_unlock(&rb->consume_lock);
     
+    int nr_access_time = atomic_load(&rb->nr_access_time);
+    int access_time = atomic_load(&rb->access_time);
+
+    access_time = (access_time * nr_access_time + end - start) / (nr_access_time + 1);
+    atomic_store(&rb->access_time, access_time);
+    atomic_fetch_add(&rb->nr_access_time, 1);
+    
     return result;
+}
+
+/**
+* Get the average access time for the ring buffer
+*
+* @param rb Pointer to the ring buffer structure
+* @return Average access time in nanoseconds
+*/
+int ring_buffer_access_time(const ring_buffer_t *rb) {
+    return atomic_load(&rb->access_time);
 }
 
 #endif /* RING_BUFFER_H */
