@@ -6,9 +6,10 @@ LDFLAGS = -lrt -pthread -lm
 OBJS = simulation.o example.o
 OBJS_BATCH = simulation.o example_batch.o
 OBJS_MULTI_RB = simulation.o example_multi_rb.o
+OBJS_TRACK = simulation.o example_track_waiters.o
 
 # Default target
-all: simulation simulation_batch simulation_multi_rb
+all: simulation simulation_batch simulation_multi_rb simulation_track_waiters
 
 # Linking the executable
 simulation: $(OBJS)
@@ -16,6 +17,8 @@ simulation: $(OBJS)
 simulation_batch: $(OBJS_BATCH)
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 simulation_multi_rb: $(OBJS_MULTI_RB)
+	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
+simulation_track_waiters: $(OBJS_TRACK)	
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Compiling source files
@@ -31,9 +34,12 @@ example_batch.o: example_batch.c simulation.h
 example_multi_rb.o: example_multi_rb.c simulation.h
 	$(CC) -g $(CFLAGS) -c $<
 
+example_track_waiters.o: example_track_waiters.c simulation.h
+	$(CC) -g $(CFLAGS) -c $<
+
 # Clean target
 clean:
-	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(TARGET)
+	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(OBJS_TRACK) $(TARGET) 
 
 # Run the example program
 run: $(TARGET)
