@@ -29,6 +29,9 @@ typedef struct {
     double value;
     uint64_t produce_time;
     uint64_t consume_time;
+    uint64_t latency;
+    int waiters;
+    uint64_t spin_time;
 } item_t;
 
 typedef struct {
@@ -125,6 +128,7 @@ void* consumer_thread(void* arg) {
     consumer_args_t* consumer_arg = (consumer_args_t*)arg;
     int iterations = 0;
     int items_to_process = consumer_arg->total_items * 2 / consumer_arg->num_consumers;
+    int nr_waiters = 0;
     
     // Define batch size - can be adjusted based on performance testing
     // const int BATCH_SIZE = 16;
@@ -139,15 +143,22 @@ void* consumer_thread(void* arg) {
     while (iterations < items_to_process) {
         // Create items array for batch processing
         item_t item;
+        item.waiters = 0;
 
-        consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
+        // consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
         // Try to consume a batch of items
+        if (iterations % SAMPLING_SIZE == 0) {
+            nr_waiters = ring_buffer_consumers_waiting(&buffer);
+        }
+        item.waiters = nr_waiters;
+        printf("Consumer %02d: %d -> item.waiters=%d\n", consumer_arg->id, nr_waiters, item.waiters);
         uint64_t start = get_time_ns();
         bool got = ring_buffer_consume(&buffer, &item);
         uint64_t end = get_time_ns();
-        
-        consumer_arg->total_spin_time += end - start;
+
         item.produce_time = start;
+        item.spin_time = end - start;
+        consumer_arg->total_spin_time += item.spin_time;
 
         if (got) {            
             // Simulate some work for each item
@@ -156,23 +167,21 @@ void* consumer_thread(void* arg) {
 
             // Update item's consume time and statistics
             item.consume_time = get_time_ns();
-            consumer_arg->total_latency += item.consume_time - item.produce_time;
+            item.latency = item.consume_time - item.produce_time;
+            consumer_arg->total_latency += item.latency;
             consumer_arg->total_consumed++;
+            
+            // Add item to processed items array
+            consumer_arg->processed_items[iterations] = item;
             iterations++;
         } else {
             // No items consumed, queue is empty so exit.
             break;
-            // usleep(1000);
-            // iterations++;  // Increment to prevent infinite loop
         }
     }
     uint64_t end = get_time_ns();
 
     consumer_arg->total_running_time = end - start;
-    consumer_arg->num_waiters /= iterations;
-
-    // printf("Consumer %d: Finished after processing %d items\n", 
-    //        consumer_arg->id, consumer_arg->total_consumed);
     return NULL;
 }
 
@@ -214,8 +223,23 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
             total_service_time += service_time_us;
         }
         total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
-        average_nr_waiters += consumer_args[i].num_waiters;
+        // average_nr_waiters += consumer_args[i].num_waiters;
     }
+
+    // Print statistics for each consumed item
+    int total_waiters = 0;
+    // printf("\n");
+    // printf("Consumed items statistics:\n"); 
+    // printf("ID,Latency,Waiters\n");
+    // for (int i = 0; i < num_consumers; i++) {
+    //     for (int j = 0; j < consumer_args[i].total_consumed; j++) {
+    //         item_t item = consumer_args[i].processed_items[j];
+    //         total_waiters += item.waiters;
+    //         printf("%d,%.2f,%d,%.2f\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0);
+    //     }
+    // }
+
+    printf("Total_waiters %d\n", total_waiters);
 
     average_nr_waiters /= num_consumers;
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
@@ -239,7 +263,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("Average_latency %.2f us\n", total_latency/total_items);
     printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
     printf("Service_time_overhead %.2f%%\n", service_time_overhead);
-    printf("Average_nr_waiters %.2f\n", average_nr_waiters);
+    // printf("Average_nr_waiters %.2f\n", average_nr_waiters);
 }
 
 int main(int argc, char* argv[]) {
@@ -358,6 +382,21 @@ int main(int argc, char* argv[]) {
     
     // Create consumer threads
     for (int i = 0; i < num_consumers; i++) {
+        consumer_args[i].processed_items = (item_t*)malloc(items_per_producer * sizeof(item_t));
+        if (!consumer_args[i].processed_items) {
+            fprintf(stderr, "Failed to allocate memory for processed items\n");
+            // Free previously created consumers processed items
+            for (int j = 0; j < i; j++) {
+                free(consumer_args[j].processed_items);
+            }
+            ring_buffer_destroy(&buffer);
+            free(producers);
+            free(consumers);
+            free(producer_args);
+            free(consumer_args);
+            return 1;
+        }
+
         consumer_args[i].id = i + 1;
         consumer_args[i].core = (i + num_producers) % sysconf(_SC_NPROCESSORS_ONLN); // Distribute across available cores
         consumer_args[i].total_consumed = 0;
@@ -372,6 +411,10 @@ int main(int argc, char* argv[]) {
         
         if (pthread_create(&consumers[i], NULL, consumer_thread, &consumer_args[i]) != 0) {
             fprintf(stderr, "Failed to create consumer thread %d\n", i + 1);
+            // Free previously created consumers processed items
+            for (int j = 0; j <= i; j++) {
+                free(consumer_args[j].processed_items);
+            }
             ring_buffer_destroy(&buffer);
             free(producers);
             free(consumers);
