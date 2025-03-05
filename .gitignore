@@ -87,3 +87,5 @@ c/simulation_batch_track_waiters
 c/simulation_multi_rb_track_waiters
 
 /c/logdir/*
+/c/results
+notebooks/.ipynb_checkpoints/analysis-checkpoint.ipynb
