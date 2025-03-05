@@ -89,3 +89,4 @@ c/simulation_multi_rb_track_waiters
 /c/logdir/*
 /c/results
 notebooks/.ipynb_checkpoints/analysis-checkpoint.ipynb
+c/simulation_smart_multi_rb_track_waiters
