@@ -25,7 +25,7 @@
 #define SAMPLING_SIZE 100
 
 typedef struct {
-    int id;
+    uint64_t id;
     double value;
     uint64_t produce_time;
     uint64_t consume_time;
@@ -104,7 +104,7 @@ void* producer_thread(void* arg) {
     
     for (int i = 0; i < producer_arg->items_per_producer; i++) {
         item_t item;
-        item.id = producer_arg->id * 1000 + i;
+        item.id = i;
         item.produce_time = get_time_ns();
         item.value = (double)(producer_arg->id * 100) + (i * 0.5);
         
@@ -143,14 +143,8 @@ void* consumer_thread(void* arg) {
 
     uint64_t start = get_time_ns();
     while (iterations < items_to_process) {
-        // Create items array for batch processing
-        item_t item;
-        item.waiters = 0;
-
-        // consumer_arg->num_waiters += ring_buffer_consumers_waiting(&buffer);
-        // printf("Item id %d: %d -> item.waiters=%d\n", item.id, nr_waiters, item.waiters);
         uint64_t start = get_time_ns();
-        bool got = ring_buffer_consume(&buffer, &item);
+        item_t *item = (item_t *)ring_buffer_consume(&buffer);
         uint64_t end = get_time_ns();
 
         // Update item's consume time and statistics
@@ -158,29 +152,28 @@ void* consumer_thread(void* arg) {
             nr_waiters = ring_buffer_consumers_waiting(&buffer);
             access_time = ring_buffer_access_time(&buffer);
         }
-        
-        item.access_time = (uint64_t)access_time;
-        item.waiters = nr_waiters;
-        item.produce_time = start;
-        item.spin_time = end - start;
-        consumer_arg->total_spin_time += item.spin_time;
 
-        // printf("Item id %d: %d -> item.waiters=%d, %ld\n", item.id, nr_waiters, item.waiters, item.access_time);
-
-        if (got) {            
+        iterations++;
+        if (item) {          
+            item->access_time = (uint64_t)access_time;
+            item->waiters = nr_waiters;
+            item->produce_time = start;
+            item->spin_time = end - start;
+            consumer_arg->total_spin_time += item->spin_time;
+            
             // Simulate some work for each item
             simulation_stats_t stats = simulation_busy_wait_us(consumer_arg->service_time);
             consumer_arg->total_service_time += stats.actual_us;
 
             // Update item's consume time and statistics
-            item.consume_time = get_time_ns();
-            item.latency = item.consume_time - item.produce_time;
-            consumer_arg->total_latency += item.latency;
+            item->consume_time = get_time_ns();
+            item->latency = item->consume_time - item->produce_time;
+            consumer_arg->total_latency += item->latency;
             consumer_arg->total_consumed++;
             
             // Add item to processed items array
-            consumer_arg->processed_items[iterations] = item;
-            iterations++;
+            consumer_arg->processed_items[iterations-1] = *item;
+            
         } else {
             // No items consumed, queue is empty so exit.
             break;
@@ -238,7 +231,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     for (int i = 0; i < num_consumers; i++) {
         for (int j = 0; j < consumer_args[i].total_consumed; j++) {
             item_t item = consumer_args[i].processed_items[j];
-            printf("%d,%.2f,%d,%.2f,%ld\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0, item.access_time);
+            printf("%ld,%.2f,%d,%.2f,%ld\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0, item.access_time);
         }
     }
 

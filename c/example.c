@@ -16,12 +16,13 @@
 #include <math.h>
 
 // Default values
-#define DEFAULT_BUFFER_SIZE 100000
+#define DEFAULT_BUFFER_SIZE 10000000
 #define DEFAULT_NUM_PRODUCERS 1
 #define DEFAULT_NUM_CONSUMERS 16
-#define DEFAULT_ITEMS_PER_PRODUCER 10000
+#define DEFAULT_ITEMS_PER_PRODUCER 10000000
 #define DEFAULT_SERVICE_TIME 10
 #define DEFAULT_ARRIVAL_RATE 100000
+#define DEFAULT_DURATION 1
 
 typedef struct {
     int id;
@@ -44,6 +45,7 @@ typedef struct {
     int id;
     int core;
     int total_consumed;
+    uint64_t duration;
     uint64_t total_spin_time;
     uint64_t total_service_time;
     uint64_t total_latency;
@@ -133,10 +135,11 @@ void* consumer_thread(void* arg) {
     // }
 
     uint64_t start = get_time_ns();
-    while (iterations < items_to_process) {
+    // while (iterations < items_to_process) {
+    while (get_time_ns() - start < consumer_arg->duration) {
         // Create items array for batch processing
         test_item_t item;
-                
+
         // Try to consume a batch of items
         uint64_t start = get_time_ns();
         bool got = ring_buffer_consume(&buffer, &item);
@@ -179,6 +182,7 @@ void print_usage(const char* program_name) {
     printf("  -c NUM_CONSUMERS   Number of consumer threads (default: %d)\n", DEFAULT_NUM_CONSUMERS);
     printf("  -i ITEMS           Items per producer (default: %d)\n", DEFAULT_ITEMS_PER_PRODUCER);
     printf("  -s SERVICE_TIME    Service time in microseconds (default: %d)\n", DEFAULT_SERVICE_TIME);
+    printf("  -d DURATION        Duration of the simulation in seconds (default: %d)\n", DEFAULT_DURATION);
     printf("  -h                 Display this help message\n");
 }
 
@@ -189,6 +193,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     double total_latency = 0.0;
     double total_service_time = 0.0;
     double total_running_time = 0.0;
+    double total_duration = 0.0;
     // int num_valid_latency = 0;
     uint64_t total_items = num_producers * items_per_producer;
     
@@ -208,6 +213,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
             total_service_time += service_time_us;
         }
         total_running_time += (double)consumer_args[i].total_running_time / 1000.0;
+        total_duration += (double)consumer_args[i].duration / 1000000.0;
     }
 
     double spin_lock_overhead = 100.0 * total_spin_time / (total_spin_time + total_service_time);
@@ -232,6 +238,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     printf("Average_latency %.2f us\n", total_latency/total_items);
     printf("Spin_lock_overhead %.2f%%\n", spin_lock_overhead);
     printf("Service_time_overhead %.2f%%\n", service_time_overhead);
+    printf("Total_duration %.2f s\n", total_duration);
 }
 
 int main(int argc, char* argv[]) {
@@ -241,10 +248,11 @@ int main(int argc, char* argv[]) {
     int num_consumers = DEFAULT_NUM_CONSUMERS;
     int items_per_producer = DEFAULT_ITEMS_PER_PRODUCER;
     int service_time = DEFAULT_SERVICE_TIME;
+    int duration = DEFAULT_DURATION;
     
     // Parse command-line arguments
     int opt;
-    while ((opt = getopt(argc, argv, "b:p:c:i:s:h")) != -1) {
+    while ((opt = getopt(argc, argv, "b:p:c:i:s:d:h")) != -1) {
         switch (opt) {
             case 'b':
                 buffer_size = atoi(optarg);
@@ -281,6 +289,13 @@ int main(int argc, char* argv[]) {
                     return 1;
                 }
                 break;
+            case 'd':
+                duration = atoi(optarg);
+                if (duration <= 0) {
+                    fprintf(stderr, "Duration must be positive\n");
+                    return 1;
+                }
+                break;
             case 'h':
                 print_usage(argv[0]);
                 return 0;
@@ -293,7 +308,6 @@ int main(int argc, char* argv[]) {
     
     // Initialize random seed
     srand(time(NULL));
-    
     
     // Initialize the ring buffer
     if (!ring_buffer_init(&buffer, buffer_size, sizeof(test_item_t))) {
@@ -308,7 +322,7 @@ int main(int argc, char* argv[]) {
     printf("  Number of Consumers: %d\n", num_consumers);
     printf("  Items per Producer: %d\n", items_per_producer);
     printf("  Service Time: %d us\n", service_time);
-    printf("\n");
+    printf("  Duration: %d s\n", duration);
     
     pthread_t* producers = (pthread_t*)malloc(num_producers * sizeof(pthread_t));
     pthread_t* consumers = (pthread_t*)malloc(num_consumers * sizeof(pthread_t));
@@ -360,6 +374,7 @@ int main(int argc, char* argv[]) {
         consumer_args[i].service_time = service_time;
         consumer_args[i].total_items = total_items;
         consumer_args[i].total_running_time = 0;
+        consumer_args[i].duration = duration * 1000000;
         
         if (pthread_create(&consumers[i], NULL, consumer_thread, &consumer_args[i]) != 0) {
             fprintf(stderr, "Failed to create consumer thread %d\n", i + 1);

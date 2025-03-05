@@ -336,8 +336,8 @@ int ring_buffer_consume_batch(ring_buffer_t *rb, void **items_array, int max_ite
 * @param item Pointer to store the dequeued item
 * @return true if successful, false otherwise
 */
-bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
-    bool result = false;
+void *ring_buffer_consume(ring_buffer_t *rb) {
+    void *result = NULL;
     
     // Update consumer waits before acquiring the lock
     rb->consumer_waits += spinlock_get_waiting(&rb->consume_lock);
@@ -348,16 +348,16 @@ bool ring_buffer_consume(ring_buffer_t *rb, void *item) {
         // Get the item
         size_t index = rb->tail & rb->mask;
         if (rb->buffer[index]) {
-            memcpy(item, rb->buffer[index], rb->element_size);
+            // memcpy(item, rb->buffer[index], rb->element_size);
+            result = rb->buffer[index];
             free(rb->buffer[index]);
             rb->buffer[index] = NULL;
-            
+
             // Memory barrier to ensure the item is read before updating tail
             __sync_synchronize();
             
             // Update tail
             rb->tail = (rb->tail + 1) & rb->mask;
-            result = true;
         }
     }
 
