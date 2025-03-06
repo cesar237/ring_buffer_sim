@@ -12,8 +12,10 @@ OBJS_MULTI_RB_TRACK = simulation.o example_multi_rb_track_waiters.o
 OBJS_SMART_MULTI_RB_TRACK = simulation.o example_smart_multi_rb_track_waiters.o
 OBJS_SMART_BATCH_MULTI_RB_TRACK = simulation.o example_smart_batch_multi_rb_track_waiters.o
 
+BINS = simulation simulation_batch simulation_multi_rb simulation_track_waiters simulation_batch_track_waiters simulation_multi_rb_track_waiters simulation_smart_multi_rb_track_waiters simulation_smart_batch_multi_rb_track_waiters
+
 # Default target
-all: simulation simulation_batch simulation_multi_rb simulation_track_waiters simulation_batch_track_waiters simulation_multi_rb_track_waiters simulation_smart_multi_rb_track_waiters simulation_smart_batch_multi_rb_track_waiters
+all: $(BINS)
 
 # Linking the executable
 simulation: $(OBJS)
@@ -61,7 +63,7 @@ example_smart_batch_multi_rb_track_waiters.o: example_smart_batch_multi_rb_track
 
 # Clean target
 clean:
-	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(OBJS_TRACK) $(TARGET)  $(OBJS_BATCH_TRACK) $(OBJS_MULTI_RB_TRACK) $(OBJS_SMART_MULTI_RB_TRACK) $(OBJS_SMART_BATCH_MULTI_RB_TRACK) 
+	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(OBJS_TRACK) $(TARGET)  $(OBJS_BATCH_TRACK) $(OBJS_MULTI_RB_TRACK) $(OBJS_SMART_MULTI_RB_TRACK) $(OBJS_SMART_BATCH_MULTI_RB_TRACK) $(BINS)
 
 # Run the example program
 run: $(TARGET)
