@@ -10,9 +10,10 @@ OBJS_TRACK = simulation.o example_track_waiters.o
 OBJS_BATCH_TRACK = simulation.o example_batch_track_waiters.o
 OBJS_MULTI_RB_TRACK = simulation.o example_multi_rb_track_waiters.o
 OBJS_SMART_MULTI_RB_TRACK = simulation.o example_smart_multi_rb_track_waiters.o
+OBJS_SMART_BATCH_MULTI_RB_TRACK = simulation.o example_smart_batch_multi_rb_track_waiters.o
 
 # Default target
-all: simulation simulation_batch simulation_multi_rb simulation_track_waiters simulation_batch_track_waiters simulation_multi_rb_track_waiters simulation_smart_multi_rb_track_waiters
+all: simulation simulation_batch simulation_multi_rb simulation_track_waiters simulation_batch_track_waiters simulation_multi_rb_track_waiters simulation_smart_multi_rb_track_waiters simulation_smart_batch_multi_rb_track_waiters
 
 # Linking the executable
 simulation: $(OBJS)
@@ -28,6 +29,8 @@ simulation_batch_track_waiters: $(OBJS_BATCH_TRACK)
 simulation_multi_rb_track_waiters: $(OBJS_MULTI_RB_TRACK)	
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 simulation_smart_multi_rb_track_waiters: $(OBJS_SMART_MULTI_RB_TRACK)	
+	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
+simulation_smart_batch_multi_rb_track_waiters: $(OBJS_SMART_BATCH_MULTI_RB_TRACK)	
 	$(CC) -g $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Compiling source files
@@ -54,9 +57,11 @@ example_multi_rb_track_waiters.o: example_multi_rb_track_waiters.c simulation.h
 
 example_smart_multi_rb_track_waiters.o: example_smart_multi_rb_track_waiters.c simulation.h
 
+example_smart_batch_multi_rb_track_waiters.o: example_smart_batch_multi_rb_track_waiters.c simulation.h
+
 # Clean target
 clean:
-	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(OBJS_TRACK) $(TARGET)  $(OBJS_BATCH_TRACK) $(OBJS_MULTI_RB_TRACK) $(OBJS_SMART_MULTI_RB_TRACK)
+	rm -f $(OBJS) $(OBJS_BATCH) $(OBJS_MULTI_RB) $(OBJS_TRACK) $(TARGET)  $(OBJS_BATCH_TRACK) $(OBJS_MULTI_RB_TRACK) $(OBJS_SMART_MULTI_RB_TRACK) $(OBJS_SMART_BATCH_MULTI_RB_TRACK) 
 
 # Run the example program
 run: $(TARGET)

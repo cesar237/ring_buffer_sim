@@ -57,8 +57,8 @@ typedef struct {
     volatile size_t *producers;    // Producer index
     volatile size_t *consumers;    // Consumer index
 
-    spinlock_t *produce_locks; // Lock for producers
-    spinlock_t *consume_locks; // Lock for consumers
+    spinlock_t **produce_locks; // Lock for producers
+    spinlock_t **consume_locks; // Lock for consumers
 
     int produce_contention;
     int consume_contention;
@@ -92,7 +92,17 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
     if (!rb->buffer) {
         return false;
     }
-    
+
+    rb->produce_locks = (spinlock_t **)malloc(degree * sizeof(spinlock_t *));
+    if (!rb->produce_locks) {
+        return false;
+    }
+
+    rb->consume_locks = (spinlock_t **)malloc(degree * sizeof(spinlock_t *));
+    if (!rb->consume_locks) {
+        return false;
+    }
+
     rb->size = capacity;
     rb->mask = capacity - 1;
     rb->element_size = element_size;
@@ -102,9 +112,13 @@ bool ring_buffer_init_batch(ring_buffer_t *rb, size_t capacity, size_t element_s
 
     rb->batch_size = batch_size;
     rb->access_time = 0;
+
+
     
-    spinlock_init(&rb->produce_lock);
-    spinlock_init(&rb->consume_lock);
+    for (int i=0; i < rb->degree; i++) {
+        spinlock_init(rb->produce_locks[i]);
+        spinlock_init(rb->consume_locks[i]);
+    }
     
     return true;
 }

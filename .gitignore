@@ -90,3 +90,4 @@ c/simulation_multi_rb_track_waiters
 /c/results
 notebooks/.ipynb_checkpoints/analysis-checkpoint.ipynb
 c/simulation_smart_multi_rb_track_waiters
+c/simulation_smart_batch_multi_rb_track_waiters

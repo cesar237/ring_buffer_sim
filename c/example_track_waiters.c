@@ -231,7 +231,7 @@ void print_statistics(consumer_args_t* consumer_args, int num_consumers, int num
     for (int i = 0; i < num_consumers; i++) {
         for (int j = 0; j < consumer_args[i].total_consumed; j++) {
             item_t item = consumer_args[i].processed_items[j];
-            printf("%ld,%.2f,%d,%.2f,%ld\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0, item.access_time);
+            // printf("%ld,%.2f,%d,%.2f,%ld\n", item.id, item.latency/1000.0, item.waiters, item.spin_time/1000.0, item.access_time);
         }
     }
 
