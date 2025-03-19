@@ -22,6 +22,7 @@
 #define DEFAULT_ITEMS_PER_PRODUCER 10000
 #define DEFAULT_SERVICE_TIME 10
 #define DEFAULT_BATCH_SIZE 4
+#define LAMBDA_US 1
 
 typedef struct {
     int id;
@@ -29,6 +30,28 @@ typedef struct {
     uint64_t produce_time;
     uint64_t consume_time;
 } test_item_t;
+
+/**
+ * Generate a random number following an exponential distribution
+ * with rate parameter lambda.
+ * 
+ * The time between arrivals in a Poisson process follows an 
+ * exponential distribution.
+ * 
+ * @param lambda The rate parameter of the Poisson process
+ * @return A random value from the exponential distribution
+ */
+double random_exponential(double lambda) {
+    double u = (double)rand() / RAND_MAX;  // Uniform random number between 0 and 1
+    
+    // Convert uniform to exponential using inverse transform sampling
+    // Avoid taking log of 0
+    while (u == 0) {
+        u = (double)rand() / RAND_MAX;
+    }
+    
+    return -log(u) / lambda;
+}
 
 typedef struct {
     int id;
@@ -97,17 +120,16 @@ void* producer_thread(void* arg) {
     
     for (int i = 0; i < producer_arg->items_per_producer; i++) {
         test_item_t item;
+        int inter_arrival = (int)random_exponential(LAMBDA_US);
+        usleep(inter_arrival);
+
         item.id = producer_arg->id * 1000 + i;
         item.produce_time = get_time_ns();
         item.value = (double)(producer_arg->id * 100) + (i * 0.5);
-        
         producer_arg->total_produced++;
 
         // Try to produce until successful
-        while (!ring_buffer_produce(&buffer, &item)) {
-            // Buffer is full, spin for a bit
-            usleep(1000);
-        }
+        ring_buffer_produce(&buffer, &item);
     }
     
     // printf("Producer %d: Finished\n", producer_arg->id);
@@ -167,10 +189,10 @@ void* consumer_thread(void* arg) {
             // Increment iterations by number of items consumed
             iterations += consumed;
         } else {
-            break;
+            // break;
             // No items were consumed, sleep for a bit
-            // usleep(1000);
-            // iterations++;  // Increment to prevent infinite loop
+            usleep(2);
+            iterations++;  // Increment to prevent infinite loop
         }
     }
     uint64_t end = get_time_ns();
